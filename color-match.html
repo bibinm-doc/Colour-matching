@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef0f6">
+<meta name="description" content="Color Match: tap the tile that matches the target color before time runs out.">
+<title>Color Match</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='13' height='13' rx='4' fill='%234a5cff'/%3E%3Crect x='17' y='2' width='13' height='13' rx='4' fill='%23ffc21a'/%3E%3Crect x='2' y='17' width='13' height='13' rx='4' fill='%23ea3f55'/%3E%3Crect x='17' y='17' width='13' height='13' rx='4' fill='%2325c9a0'/%3E%3C/svg%3E">
+<style>
+:root{
+  --ink:#1c2033;
+  --ink-soft:#5f6685;
+  --paper:#eef0f6;
+  --track:#d9dcea;
+  --indigo:#4a5cff;
+  --indigo-deep:#2f3fcc;
+  --red:#ea3f55;
+  --amber:#ffc21a;
+  --vh:1vh;
+  --chip-h:clamp(80px,calc(var(--vh) * 17),150px);
+  --font:ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold","Nunito","Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",sans-serif;
+}
+@supports (height:1dvh){:root{--vh:1dvh}}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font);
+  font-weight:700;
+  overflow:hidden;
+  overscroll-behavior:none;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;
+  touch-action:manipulation;
+}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;touch-action:manipulation}
+:focus-visible{outline:4px solid var(--indigo);outline-offset:3px}
+
+.app{height:100vh;height:100dvh;width:100%}
+.screen{display:none;width:100%;height:100%;margin:0 auto}
+.app[data-screen="home"] .home{display:flex}
+.app[data-screen="game"] .game{display:flex}
+
+/* ---------- Buttons ---------- */
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;padding:18px 22px;border-radius:22px;
+  font-size:21px;font-weight:900;letter-spacing:-.01em;
+  transition:transform .08s ease,box-shadow .08s ease,filter .15s;
+}
+.btn.primary{background:var(--indigo);color:#fff;box-shadow:0 6px 0 var(--indigo-deep)}
+.btn.ghost{background:var(--paper);color:var(--ink);box-shadow:0 6px 0 var(--track)}
+.btn:hover{filter:brightness(1.05)}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.btn.big{font-size:26px;padding:22px 24px;border-radius:26px}
+.btn svg{flex:none}
+
+/* ---------- Home ---------- */
+.home{
+  flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;padding:24px 22px;max-width:440px;text-align:center;
+}
+.demo{width:min(78vw,300px);display:flex;flex-direction:column;gap:16px;margin-bottom:8px}
+.demo-target{
+  height:70px;border-radius:24px;
+  box-shadow:0 0 0 6px #fff,0 10px 24px -8px rgba(28,32,51,.35);
+  transition:background-color .35s;
+}
+.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.demo-grid i{
+  aspect-ratio:1.5;border-radius:20px;
+  box-shadow:0 6px 0 rgba(28,32,51,.12);
+  transition:background-color .35s;
+}
+.demo-grid i.hit{animation:hit .55s ease}
+@keyframes hit{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.1);box-shadow:0 0 0 5px #fff,0 0 0 10px var(--ink)}
+  100%{transform:scale(1);box-shadow:0 0 0 5px #fff,0 0 0 10px var(--ink)}
+}
+h1{font-size:clamp(46px,13vw,70px);line-height:.95;font-weight:900;letter-spacing:-.045em}
+.lede{font-size:18px;line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:32ch}
+.home .btn{max-width:320px;margin-top:6px}
+.best-line{
+  min-height:34px;padding:7px 16px;border-radius:99px;background:#fff;
+  font-size:16px;color:var(--ink);visibility:hidden;
+}
+.best-line.show{visibility:visible}
+@media (max-height:620px){.demo{display:none}}
+
+/* ---------- Game ---------- */
+.game{
+  flex-direction:column;align-items:center;gap:18px;max-width:600px;
+  padding:max(14px,env(safe-area-inset-top)) 18px max(18px,env(safe-area-inset-bottom));
+}
+.top{width:100%;display:flex;flex-direction:column;gap:18px}
+.hud{display:grid;grid-template-columns:1fr auto auto;align-items:end;gap:18px}
+.label{display:block;font-size:14px;font-weight:700;color:var(--ink-soft)}
+.score-row{display:flex;align-items:center;gap:14px}
+#score{
+  display:block;font-size:clamp(42px,11vw,54px);line-height:1;font-weight:900;
+  letter-spacing:-.03em;font-variant-numeric:tabular-nums;
+}
+.pips{display:flex;gap:5px;align-items:center;padding-top:6px}
+.pips i{width:10px;height:10px;border-radius:50%;background:var(--track);transition:background .12s,transform .12s}
+.pips i.on{background:var(--indigo);transform:scale(1.2)}
+.pips.full i{background:var(--amber);transform:scale(1.3)}
+.best-block{text-align:right}
+#bestNow{display:block;font-size:30px;line-height:1.1;font-weight:900;font-variant-numeric:tabular-nums}
+.icon-btn{
+  width:46px;height:46px;border-radius:16px;background:#fff;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 0 var(--track);transition:transform .08s,box-shadow .08s;
+}
+.icon-btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--track)}
+.icon-btn .off{display:none}
+.icon-btn.muted .on{display:none}
+.icon-btn.muted .off{display:block}
+
+.target{
+  width:calc(100% - 12px);margin:0 6px;height:var(--chip-h);border-radius:28px;
+  background:var(--c,#999);
+  box-shadow:0 0 0 6px #fff,0 12px 26px -10px rgba(28,32,51,.4);
+}
+.timer{width:100%;height:12px;border-radius:99px;background:var(--track);overflow:hidden}
+.timer i{display:block;width:100%;height:100%;border-radius:inherit;background:var(--ink);transform-origin:left center}
+.timer.low i{background:var(--red)}
+
+.board{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+.grid{
+  --cols:2;--rows:2;--ratio:1;--gap:14px;
+  display:grid;gap:var(--gap);
+  grid-template-columns:repeat(var(--cols),1fr);
+  grid-template-rows:repeat(var(--rows),1fr);
+  aspect-ratio:var(--ratio);
+  width:min(100%,560px,max(150px,calc((100 * var(--vh) - var(--chip-h) - 200px) * var(--ratio))));
+}
+.grid[data-n="9"]{--gap:12px}
+.grid[data-n="12"],.grid[data-n="16"]{--gap:10px}
+
+.tile{
+  position:relative;border-radius:clamp(14px,4.5vw,28px);
+  background:var(--c);
+  box-shadow:0 6px 0 rgba(28,32,51,.12);
+  animation:pop-in .17s cubic-bezier(.2,1.4,.4,1) backwards;
+  animation-delay:var(--d,0ms);
+  transition:transform .1s ease,box-shadow .1s ease,opacity .14s ease;
+}
+.grid[data-n="12"] .tile,.grid[data-n="16"] .tile{border-radius:clamp(12px,3.4vw,20px);box-shadow:0 4px 0 rgba(28,32,51,.12)}
+.tile:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(28,32,51,.12)}
+@keyframes pop-in{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+
+.tile.picked{
+  animation:none;transform:scale(1.1);z-index:2;
+  box-shadow:0 0 0 5px #fff,0 14px 26px -6px rgba(28,32,51,.4);
+}
+.tile.dim{animation:none;opacity:.3;transform:scale(.92);box-shadow:none}
+.tile.wrong{animation:shake .38s;z-index:2;box-shadow:0 0 0 4px #fff,0 0 0 9px var(--red)}
+.tile.answer{animation:none;z-index:2;box-shadow:0 0 0 4px #fff,0 0 0 9px var(--ink)}
+.tile.wrong::after,.tile.answer::after{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:900;line-height:1;color:#fff;
+}
+.tile.wrong::after{content:"\2715";background:var(--red)}
+.tile.answer::after{content:"\2713";background:var(--ink)}
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-9px)}
+  40%{transform:translateX(8px)}
+  60%{transform:translateX(-6px)}
+  80%{transform:translateX(4px)}
+}
+
+/* Short landscape phones: controls left, board right */
+@media (orientation:landscape) and (max-height:560px){
+  :root{--chip-h:clamp(60px,calc(var(--vh) * 26),120px)}
+  .game{flex-direction:row;align-items:center;gap:28px;max-width:980px}
+  .top{flex:0 0 min(42%,360px);gap:14px}
+  .board{flex:1}
+  .grid{width:min(100%,calc((100 * var(--vh) - 44px) * var(--ratio)))}
+}
+
+/* ---------- Effects ---------- */
+#fx{position:fixed;inset:0;pointer-events:none;z-index:12;overflow:hidden}
+.fx-p{position:absolute;border-radius:50%}
+.fx-ring{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;border:6px solid}
+.fx-pop{
+  position:absolute;padding:6px 14px;border-radius:99px;
+  background:var(--ink);color:#fff;font-size:22px;font-weight:900;white-space:nowrap;
+}
+.fx-pop.bonus{background:var(--amber);color:var(--ink)}
+#flash{
+  position:fixed;inset:0;pointer-events:none;opacity:0;z-index:15;
+  background:radial-gradient(ellipse at center,rgba(234,63,85,0) 30%,rgba(234,63,85,.6) 100%);
+}
+
+/* ---------- Sheets ---------- */
+.sheet{
+  position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
+  padding:20px;background:rgba(28,32,51,.5);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+}
+.sheet.show{display:flex;animation:fade .2s ease}
+.panel{
+  width:min(100%,380px);background:#fff;border-radius:34px;padding:28px 24px 24px;
+  text-align:center;box-shadow:0 30px 60px -20px rgba(0,0,0,.45);
+  animation:rise .32s cubic-bezier(.2,1.2,.4,1);
+  max-height:100%;overflow:auto;
+}
+.panel h2{font-size:26px;font-weight:900;letter-spacing:-.02em}
+.over-title{font-size:22px;font-weight:900;color:var(--red);letter-spacing:-.01em}
+.final{font-size:clamp(78px,24vw,104px);line-height:1;font-weight:900;letter-spacing:-.05em;font-variant-numeric:tabular-nums;margin-top:6px}
+.final-cap{font-size:16px;color:var(--ink-soft);font-weight:700;margin-top:2px}
+.best-pill{
+  display:inline-block;margin:16px 0 22px;padding:9px 18px;border-radius:99px;
+  background:var(--paper);font-size:18px;font-weight:800;
+}
+.best-pill.new{background:var(--amber);animation:wiggle .6s ease .25s}
+.stack{display:flex;flex-direction:column;gap:16px}
+.panel p.msg{color:var(--ink-soft);font-weight:600;margin:10px 0 22px;font-size:17px}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes rise{from{transform:translateY(30px) scale(.94);opacity:0}to{transform:none;opacity:1}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-4deg) scale(1.06)}75%{transform:rotate(4deg) scale(1.06)}}
+
+@media (prefers-reduced-motion:reduce){
+  .tile,.panel,.sheet.show,.best-pill.new{animation:none!important}
+  .tile,.btn,.icon-btn{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-screen="home">
+
+  <!-- HOME -->
+  <main class="screen home">
+    <div class="demo" aria-hidden="true">
+      <div class="demo-target" id="demoTarget"></div>
+      <div class="demo-grid" id="demoGrid"><i></i><i></i><i></i><i></i></div>
+    </div>
+    <h1>Color<br>Match</h1>
+    <p class="lede">Tap the tile that matches the color on top. You get 3 seconds, and one miss ends the run. Chain 5 correct answers for a +2 bonus.</p>
+    <button class="btn primary big" id="play" type="button">Play</button>
+    <p class="best-line" id="homeBest">Best score: 0</p>
+  </main>
+
+  <!-- GAME -->
+  <main class="screen game">
+    <div class="top">
+      <header class="hud">
+        <div>
+          <span class="label">Score</span>
+          <div class="score-row">
+            <b id="score" aria-live="polite">0</b>
+            <div class="pips" id="pips" title="Streak: 5 in a row gives +2 bonus" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+        </div>
+        <div class="best-block">
+          <span class="label">Best</span>
+          <b id="bestNow">0</b>
+        </div>
+        <button class="icon-btn" id="mute" type="button" aria-label="Turn sound off" aria-pressed="false">
+          <svg class="on" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg>
+          <svg class="off" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+        </button>
+      </header>
+      <div class="target" id="target" role="img" aria-label="Target color"></div>
+      <div class="timer" id="timer" role="presentation"><i id="timerFill"></i></div>
+    </div>
+    <div class="board">
+      <div class="grid" id="grid" role="group" aria-label="Color tiles"></div>
+    </div>
+  </main>
+
+  <!-- GAME OVER -->
+  <div class="sheet" id="over" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <div class="panel">
+      <p class="over-title" id="overTitle">Game over</p>
+      <div class="final" id="finalScore">0</div>
+      <p class="final-cap">Final score</p>
+      <div class="best-pill" id="bestPill">Best: 0</div>
+      <div class="stack">
+        <button class="btn primary" id="again" type="button">Play Again</button>
+        <button class="btn ghost" id="share" type="button">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M8 7.5l4-4 4 4M5 12v7h14v-7"/></svg>
+          <span id="shareLabel">Share Score</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSED -->
+  <div class="sheet" id="paused" role="dialog" aria-modal="true" aria-labelledby="pausedTitle">
+    <div class="panel">
+      <h2 id="pausedTitle">Paused</h2>
+      <p class="msg">The timer is stopped until you continue.</p>
+      <button class="btn primary" id="resume" type="button">Resume</button>
+    </div>
+  </div>
+</div>
+
+<div id="fx" aria-hidden="true"></div>
+<div id="flash" aria-hidden="true"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.random() * a.length | 0];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const css = c => `hsl(${c.h.toFixed(1)},${c.s.toFixed(1)}%,${c.l.toFixed(1)}%)`;
+const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* Storage: localStorage with an in-memory fallback if it is unavailable */
+const mem = {};
+const store = {
+  get(k) { try { const v = localStorage.getItem(k); if (v !== null) return v; } catch (e) {} return k in mem ? mem[k] : null; },
+  set(k, v) { mem[k] = String(v); try { localStorage.setItem(k, v); } catch (e) {} }
+};
+const K_BEST = 'colormatch.best.v1';
+const K_MUTE = 'colormatch.muted.v1';
+
+/* ---------- Elements ---------- */
+const app = $('#app'), grid = $('#grid'), targetEl = $('#target');
+const timerEl = $('#timer'), fill = $('#timerFill');
+const scoreEl = $('#score'), bestEl = $('#bestNow'), pipsEl = $('#pips');
+const overEl = $('#over'), pausedEl = $('#paused'), fx = $('#fx'), flash = $('#flash');
+const muteBtn = $('#mute');
+
+/* ---------- State ---------- */
+let state = 'home';            // home | playing | transition | paused | over
+let score = 0, streak = 0, bestAtStart = 0;
+let best = parseInt(store.get(K_BEST), 10) || 0;
+let muted = store.get(K_MUTE) === '1';
+let round = null, dur = 0, deadline = 0, remaining = 0, lockUntil = 0, raf = 0, lowOn = false;
+let overReason = 'wrong';
+
+/* ---------- Difficulty ---------- */
+const DIMS = { 4: [2, 2], 6: [3, 2], 9: [3, 3], 12: [3, 4], 16: [4, 4] };
+const tileCount = s => s < 4 ? 4 : s < 10 ? 6 : s < 18 ? 9 : s < 28 ? 12 : 16;
+const roundTime = s => Math.max(1.4, 3 - s * 0.035);          // seconds, 3.0 -> 1.4
+
+function makeRound(sc) {
+  const n = tileCount(sc);
+  const hardChance = sc < 3 ? 0 : Math.min(0.55, 0.1 + sc * 0.013);
+  const hard = Math.random() < hardChance;
+  const target = { h: rnd(0, 360), s: rnd(55, 90), l: rnd(42, 60) };
+  const others = [];
+
+  if (hard) {
+    // Very similar shades: small steps on lightness, hue or saturation
+    const d = Math.max(7, 16 - sc * 0.2);
+    const combos = [];
+    for (const axis of ['l', 'h', 's']) for (const sign of [1, -1]) for (const m of [1, 1.6, 2.4]) combos.push([axis, sign, m]);
+    shuffle(combos);
+    for (let i = 0; i < n - 1; i++) {
+      const [axis, sign, m] = combos[i];
+      const c = { h: target.h, s: target.s, l: target.l };
+      if (axis === 'l') c.l = clamp(c.l + sign * d * m, 16, 90);
+      else if (axis === 'h') c.h = (c.h + sign * d * 1.1 * m + 360) % 360;
+      else c.s = clamp(c.s + sign * d * 1.5 * m, 20, 100);
+      others.push(c);
+    }
+  } else {
+    // Clearly different hues, spread around the wheel
+    for (let i = 0; i < n - 1; i++) {
+      const t = (i + 0.5) / (n - 1);
+      others.push({
+        h: (target.h + 22 + t * 316 + rnd(-6, 6) + 360) % 360,
+        s: clamp(target.s + rnd(-22, 22), 35, 95),
+        l: clamp(target.l + rnd(-18, 18), 24, 80)
+      });
+    }
+  }
+
+  const all = [target, ...others];
+  const order = shuffle(all.map((_, i) => i));
+  return { target, colors: order.map(i => all[i]), answer: order.indexOf(0), hard };
+}
+
+/* ---------- Sound (tiny synth, no assets) ---------- */
+let ac = null;
+function audio() {
+  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (ac && ac.state === 'suspended') ac.resume();
+  return ac;
+}
+function tone(f, at, d, type, v, slideTo) {
+  if (muted) return;
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(), s = a.currentTime + at;
+  o.type = type; o.frequency.setValueAtTime(f, s);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, s + d);
+  g.gain.setValueAtTime(0.0001, s);
+  g.gain.exponentialRampToValueAtTime(v, s + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, s + d);
+  o.connect(g); g.connect(a.destination);
+  o.start(s); o.stop(s + d + 0.03);
+}
+const STEPS = [0, 2, 4, 7, 9];
+function sfxCorrect(bonus) {
+  const f = 523.25 * Math.pow(2, STEPS[(streak - 1) % 5] / 12);
+  tone(f, 0, 0.14, 'triangle', 0.2);
+  tone(f * 2, 0, 0.1, 'sine', 0.06);
+  if (bonus) [523.25, 659.25, 783.99, 1046.5].forEach((n, i) => tone(n, 0.09 + i * 0.06, 0.16, 'triangle', 0.16));
+}
+function sfxWrong() { tone(220, 0, 0.4, 'sawtooth', 0.12, 70); }
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+
+/* ---------- HUD ---------- */
+function setScore(animate) {
+  scoreEl.textContent = score;
+  if (animate && !reduced) scoreEl.animate(
+    [{ transform: 'scale(1)' }, { transform: 'scale(1.28)' }, { transform: 'scale(1)' }],
+    { duration: 240, easing: 'ease-out' });
+}
+function setPips(n, full) {
+  [...pipsEl.children].forEach((p, i) => p.classList.toggle('on', i < n));
+  pipsEl.classList.toggle('full', !!full);
+}
+function setLow(on) { if (on !== lowOn) { lowOn = on; timerEl.classList.toggle('low', on); } }
+
+/* ---------- Game flow ---------- */
+function startGame() {
+  audio();
+  score = 0; streak = 0; bestAtStart = best;
+  overEl.classList.remove('show'); pausedEl.classList.remove('show');
+  bestEl.textContent = best;
+  setScore(false); setPips(0, false);
+  app.dataset.screen = 'game';
+  state = 'transition';
+  nextRound();
+}
+
+function nextRound() {
+  if (state !== 'transition') return;
+  round = makeRound(score);
+  const n = round.colors.length, dims = DIMS[n];
+
+  targetEl.style.setProperty('--c', css(round.target));
+  if (!reduced) targetEl.animate([{ transform: 'scale(.94)' }, { transform: 'scale(1)' }], { duration: 140, easing: 'ease-out' });
+
+  grid.style.setProperty('--cols', dims[0]);
+  grid.style.setProperty('--rows', dims[1]);
+  grid.style.setProperty('--ratio', (dims[0] / dims[1]).toFixed(3));
+  grid.dataset.n = n;
+  const frag = document.createDocumentFragment();
+  round.colors.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tile';
+    b.dataset.i = i;
+    b.style.setProperty('--c', css(c));
+    b.style.setProperty('--d', (i * 6) + 'ms');
+    b.setAttribute('aria-label', 'Color tile ' + (i + 1));
+    frag.appendChild(b);
+  });
+  grid.textContent = '';
+  grid.appendChild(frag);
+  setPips(streak % 5, false);
+
+  dur = roundTime(score) * 1000;
+  fill.style.transform = 'scaleX(1)';
+  lowOn = true; setLow(false);
+
+  if (document.hidden) { remaining = dur; pause(true); return; }
+
+  const now = performance.now();
+  deadline = now + dur;
+  lockUntil = now + 110;       // ignores accidental double taps
+  state = 'playing';
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(tick);
+}
+
+function tick(now) {
+  if (state !== 'playing') return;
+  const left = deadline - now;
+  if (left <= 0) { fill.style.transform = 'scaleX(0)'; lose('time', null); return; }
+  const p = left / dur;
+  fill.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+  setLow(p < 0.34);
+  raf = requestAnimationFrame(tick);
+}
+
+function onPick(i, el) {
+  if (state !== 'playing' || performance.now() < lockUntil) return;
+  if (i === round.answer) correct(el); else lose('wrong', el);
+}
+
+function correct(el) {
+  state = 'transition';
+  cancelAnimationFrame(raf);
+  streak++;
+  const bonus = streak % 5 === 0;
+  const gain = bonus ? 3 : 1;          // +1 point, +2 bonus on every 5th in a row
+  score += gain;
+  if (score > best) { best = score; store.set(K_BEST, best); bestEl.textContent = best; }
+  setScore(true);
+  setPips(bonus ? 5 : streak % 5, bonus);
+
+  el.classList.add('picked');
+  for (const t of grid.children) if (t !== el) t.classList.add('dim');
+
+  burst(el, bonus, gain);
+  sfxCorrect(bonus);
+  buzz(bonus ? [15, 30, 25] : 10);
+  setTimeout(nextRound, 140);
+}
+
+function lose(reason, el) {
+  state = 'over';
+  overReason = reason;
+  cancelAnimationFrame(raf);
+  setLow(true);
+  [...grid.children].forEach((t, i) => {
+    if (i === round.answer) t.classList.add('answer');
+    else if (t === el) t.classList.add('wrong');
+    else t.classList.add('dim');
+  });
+  if (!reduced) {
+    flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 550, easing: 'ease-out' });
+    grid.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(7px)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(0)' }], { duration: 320 });
+  }
+  sfxWrong();
+  buzz([40, 30, 70]);
+  setTimeout(showOver, 950);
+}
+
+function showOver() {
+  if (state !== 'over') return;
+  const isNew = score > bestAtStart && score > 0;
+  $('#overTitle').textContent = overReason === 'time' ? "Time's up" : 'Wrong tile';
+  const pill = $('#bestPill');
+  pill.textContent = (isNew ? 'New best: ' : 'Best: ') + best;
+  pill.classList.toggle('new', isNew);
+  $('#shareLabel').textContent = 'Share Score';
+  overEl.classList.add('show');
+  countUp($('#finalScore'), score);
+  $('#again').focus({ preventScroll: true });
+}
+
+function countUp(el, to) {
+  if (reduced || to < 2) { el.textContent = to; return; }
+  const t0 = performance.now(), d = Math.min(700, 250 + to * 20);
+  (function f(now) {
+    const p = Math.min(1, (now - t0) / d);
+    el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(f);
+  })(t0);
+}
+
+/* ---------- Pause when tab is hidden ---------- */
+function pause(fromRender) {
+  if (state !== 'playing' && !fromRender) return;
+  if (!fromRender) remaining = deadline - performance.now();
+  state = 'paused';
+  cancelAnimationFrame(raf);
+  pausedEl.classList.add('show');
+  $('#resume').focus({ preventScroll: true });
+}
+function resume() {
+  if (state !== 'paused') return;
+  pausedEl.classList.remove('show');
+  const now = performance.now();
+  deadline = now + Math.max(remaining, 400);
+  lockUntil = now + 150;
+  state = 'playing';
+  raf = requestAnimationFrame(tick);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(false); });
+
+/* ---------- Effects ---------- */
+function burst(el, bonus, gain) {
+  const r = el.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const color = el.style.getPropertyValue('--c');
+
+  const pop = document.createElement('div');
+  pop.className = 'fx-pop' + (bonus ? ' bonus' : '');
+  pop.textContent = bonus ? '+' + gain + ' streak!' : '+' + gain;
+  pop.style.left = clamp(cx, 60, innerWidth - 60) + 'px';
+  pop.style.top = cy + 'px';
+  fx.appendChild(pop);
+  pop.animate([
+    { transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 },
+    { transform: 'translate(-50%,-100%) scale(1.1)', opacity: 1, offset: 0.2 },
+    { transform: 'translate(-50%,-260%) scale(1)', opacity: 0 }
+  ], { duration: bonus ? 900 : 650, easing: 'ease-out' }).onfinish = () => pop.remove();
+
+  if (reduced) return;
+
+  const ring = document.createElement('i');
+  ring.className = 'fx-ring';
+  ring.style.cssText = `left:${cx}px;top:${cy}px;border-color:${color}`;
+  fx.appendChild(ring);
+  ring.animate([{ transform: 'scale(.5)', opacity: .9 }, { transform: 'scale(3.2)', opacity: 0 }],
+    { duration: 430, easing: 'cubic-bezier(.1,.7,.3,1)' }).onfinish = () => ring.remove();
+
+  const count = bonus ? 26 : 12;
+  const palette = bonus ? [color, color, '#ffc21a', '#4a5cff', '#fff'] : [color, color, color, '#fff'];
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('i');
+    const s = rnd(7, 14);
+    p.className = 'fx-p';
+    p.style.cssText = `left:${cx}px;top:${cy}px;width:${s}px;height:${s}px;background:${pick(palette)}`;
+    fx.appendChild(p);
+    const a = Math.random() * Math.PI * 2, dist = rnd(60, bonus ? 190 : 130);
+    const dx = Math.cos(a) * dist, dy = Math.sin(a) * dist;
+    p.animate([
+      { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(.2)`, opacity: 0 }
+    ], { duration: rnd(380, 620), easing: 'cubic-bezier(.1,.7,.3,1)' }).onfinish = () => p.remove();
+  }
+}
+
+/* ---------- Share ---------- */
+async function shareScore() {
+  const text = `I scored ${score} in Color Match! Can you beat me?`;
+  const url = /^https?:/.test(location.href) ? location.href.split('#')[0] : '';
+  const label = $('#shareLabel');
+  if (navigator.share) {
+    try {
+      const data = { title: 'Color Match', text };
+      if (url) data.url = url;
+      await navigator.share(data);
+      return;
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  const full = url ? text + ' ' + url : text;
+  let ok = false;
+  try { await navigator.clipboard.writeText(full); ok = true; } catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = full; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      ok = document.execCommand('copy'); ta.remove();
+    } catch (e2) {}
+  }
+  label.textContent = ok ? 'Copied to clipboard' : "Couldn't share";
+  setTimeout(() => { label.textContent = 'Share Score'; }, 1800);
+}
+
+/* ---------- Sound toggle ---------- */
+function renderMute() {
+  muteBtn.classList.toggle('muted', muted);
+  muteBtn.setAttribute('aria-pressed', String(muted));
+  muteBtn.setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
+}
+
+/* ---------- Home demo (live mini-round) ---------- */
+const demoTarget = $('#demoTarget'), demoTiles = [...$('#demoGrid').children];
+function demoRound() {
+  const r = makeRound(0);
+  demoTarget.style.backgroundColor = css(r.target);
+  demoTiles.forEach((t, i) => { t.classList.remove('hit'); t.style.backgroundColor = css(r.colors[i]); });
+  setTimeout(() => { if (state === 'home') demoTiles[r.answer].classList.add('hit'); }, 900);
+}
+function homeBest() {
+  const el = $('#homeBest');
+  el.textContent = 'Best score: ' + best;
+  el.classList.toggle('show', best > 0);
+}
+
+/* ---------- Input ---------- */
+// pointerdown for instant response; click (detail 0) covers keyboard activation
+grid.addEventListener('pointerdown', e => {
+  const t = e.target.closest('.tile');
+  if (!t || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  onPick(+t.dataset.i, t);
+});
+grid.addEventListener('click', e => {
+  if (e.detail !== 0) return;
+  const t = e.target.closest('.tile');
+  if (t) onPick(+t.dataset.i, t);
+});
+grid.addEventListener('contextmenu', e => e.preventDefault());
+
+$('#play').addEventListener('click', startGame);
+$('#again').addEventListener('click', startGame);
+$('#share').addEventListener('click', shareScore);
+$('#resume').addEventListener('click', resume);
+muteBtn.addEventListener('click', () => {
+  muted = !muted;
+  store.set(K_MUTE, muted ? '1' : '0');
+  renderMute();
+  if (!muted) tone(660, 0, 0.1, 'triangle', 0.15);
+});
+
+/* ---------- Init ---------- */
+renderMute();
+bestEl.textContent = best;
+homeBest();
+demoRound();
+setInterval(() => { if (state === 'home' && !document.hidden) demoRound(); }, 1900);
+})();
+</script>
+</body>
+</html>
